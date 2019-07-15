@@ -109,7 +109,11 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         Map<String,String> notificationData = remoteMessage.getData();
         try {
             JSONObject actionData = new JSONObject(notificationData.get("actionData"));
-            sendNotification(actionData.get("title").toString(), actionData.get("description").toString(), data, actionData);
+            if(actionData.getString("actionType").equals("codePush")) {
+        	    Log.d("MyFirebaseMessaging", "Code Push");
+            } else {
+                sendNotification(actionData.get("title").toString(), actionData.get("description").toString(), data, actionData);
+            }
         } catch (JSONException e) {
             e.printStackTrace();
         }
