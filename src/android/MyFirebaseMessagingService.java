@@ -1,41 +1,66 @@
 package com.gae.scaffolder.plugin;
 
+import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.Application;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.ContextWrapper;
-import android.graphics.Color;
 import android.content.Intent;
-import android.media.RingtoneManager;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.Bundle;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.app.Notification;
-import java.util.Map;
-import java.util.HashMap;
-
-import com.google.firebase.messaging.FirebaseMessagingService;
-import com.google.firebase.messaging.RemoteMessage;
-
-
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.sunbird.app.R;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+import com.adrianodigiovanni.sharedpreferences.CDVSharedPreferences;
+import com.google.firebase.messaging.FirebaseMessagingService;
+import com.google.firebase.messaging.RemoteMessage;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.sunbird.app.R;
+
 
 /**
  * Created by Felipe Echanique on 08/06/2016.
  */
 public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
+    private Context context;
+
+    public Context getContext() {
+        if (this.context == null) {
+            this.context = getApplicationContext();
+        }
+        return context;
+    }
+
+    private SharedPreferences sharedPreferences;
+
+    public SharedPreferences getSharedPreferences() {
+        if (this.sharedPreferences == null) {
+            this.sharedPreferences = this.getContext().getSharedPreferences(MyFirebaseMessagingService.SHARED_PREFERENCES_NAME, Activity.MODE_PRIVATE);
+        }
+
+        return this.sharedPreferences;
+    }
+
+    private static final String SHARED_PREFERENCES_NAME = "org.ekstep.genieservices.preference_file";
     private static final String TAG = "FCMPlugin";
 
     private String getStringResource(String name) {
@@ -109,10 +134,55 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         Map<String,String> notificationData = remoteMessage.getData();
         try {
             JSONObject actionData = new JSONObject(notificationData.get("actionData"));
-            if(actionData.getString("actionType").equals("codePush")) {
-        	    Log.d("MyFirebaseMessaging", "Code Push");
-            } else {
-                sendNotification(actionData.get("title").toString(), actionData.get("description").toString(), data, actionData);
+            try{
+                if (actionData.has("filter") && !actionData.isNull("filter")) {
+                    JSONObject filter = new JSONObject(actionData.getString("filter"));
+                    JSONObject sharedData = new JSONObject(this.getSharedPreferences().getString("topics", ""));
+                    if(filter.has("profile") && !filter.isNull("profile")) {
+                        JSONObject profile = filter.getJSONObject("profile");
+                        List<String> serverMediumList = new ArrayList<String>();
+                        List<String> sharedMediumList = new ArrayList<String>();
+                        List<String> serverGradeList = new ArrayList<String>();
+                        List<String> sharedGradeList = new ArrayList<String>();
+
+                        for(int i=0;i<profile.getJSONArray("medium").length();i++){
+                            serverMediumList.add(profile.getJSONArray("medium").getString(i));
+                        }
+                        for(int i=0;i<sharedData.getJSONArray("medium").length();i++){
+                            sharedMediumList.add(sharedData.getJSONArray("medium").getString(i));
+                        }
+                        for(int i=0;i<profile.getJSONArray("grade").length();i++){
+                            serverGradeList.add(profile.getJSONArray("grade").getString(i));
+                        }
+                        for(int i=0;i<sharedData.getJSONArray("grade").length();i++){
+                            sharedGradeList.add(sharedData.getJSONArray("grade").getString(i));
+                        }
+
+                        if(actionData.getString("actionType").equals("codePush")) {
+                            Log.d("MyFirebaseMessaging", "Code Push");
+                        } else {
+                            if(sharedData.getJSONArray("board").optString(0).equals(profile.getJSONArray("board").optString(0))){
+                                if(serverMediumList.stream().anyMatch(element -> sharedMediumList.contains(element))) {
+                                    if(serverGradeList.stream().anyMatch(element -> sharedGradeList.contains(element))) {
+                                        sendNotification(actionData.get("title").toString(), actionData.get("description").toString(), data, actionData);
+                                    }
+                                }
+
+                            }
+                        }
+                    }  else if(filter.getJSONObject("location") != null){
+                        JSONObject sharedLocation = new JSONObject(this.getSharedPreferences().getString("device_location", ""));
+                        JSONObject location = filter.getJSONObject("location");
+                        if(sharedLocation.getString("state").equals(location.getString("state")) && sharedLocation.getString("district").equals(location.getString("district"))){
+                            sendNotification(actionData.get("title").toString(), actionData.get("description").toString(), data, actionData);
+                        }
+
+                    }
+
+                }
+
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -140,6 +210,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
         NotificationManager notificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel("announcement", "Announcement",NotificationManager.IMPORTANCE_HIGH);
