@@ -77,7 +77,10 @@ public class FCMPlugin extends CordovaPlugin {
 				cordova.getThreadPool().execute(new Runnable() {
 					public void run() {
 						try{
-							FirebaseMessaging.getInstance().subscribeToTopic( args.getString(0) );
+							String[] topic = args.getString(0).split(",");
+							for (String a : topic) {
+								FirebaseMessaging.getInstance().subscribeToTopic(a);
+							}
 							callbackContext.success();
 						}catch(Exception e){
 							callbackContext.error(e.getMessage());
@@ -89,7 +92,10 @@ public class FCMPlugin extends CordovaPlugin {
 				cordova.getThreadPool().execute(new Runnable() {
 					public void run() {
 						try{
-							FirebaseMessaging.getInstance().unsubscribeFromTopic( args.getString(0) );
+							String[] topic = args.getString(0).split(",");
+							for (String a : topic) {
+								FirebaseMessaging.getInstance().unsubscribeFromTopic(a);
+							}
 							callbackContext.success();
 						}catch(Exception e){
 							callbackContext.error(e.getMessage());
